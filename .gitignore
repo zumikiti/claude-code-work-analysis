@@ -1,0 +1,20 @@
+# Rust
+/target/
+Cargo.lock
+
+# Claude tasks (project-specific planning files)
+./claude/tasks/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Generated reports
+weekly-report-*.md
