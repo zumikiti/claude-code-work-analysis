@@ -91,6 +91,13 @@ impl JsonlParser {
 
     /// Parse a single line of JSONL into a ClaudeLogEntry
     pub fn parse_line(&self, line: &str) -> Result<ClaudeLogEntry> {
+        // First check if this is a summary entry, which we should skip
+        if let Ok(summary_check) = serde_json::from_str::<serde_json::Value>(line) {
+            if summary_check.get("type").and_then(|t| t.as_str()) == Some("summary") {
+                return Err(anyhow::anyhow!("Skipping summary entry"));
+            }
+        }
+        
         let entry: ClaudeLogEntry = serde_json::from_str(line)
             .context("Failed to deserialize JSON line")?;
         

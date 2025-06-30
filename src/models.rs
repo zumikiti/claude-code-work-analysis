@@ -88,6 +88,7 @@ pub struct WorkSession {
     pub total_messages: usize,
     pub user_messages: usize,
     pub assistant_messages: usize,
+    pub summary: Option<SessionSummary>,
 }
 
 #[derive(Debug, Clone)]
@@ -98,6 +99,7 @@ pub struct WorkAnalysis {
     pub total_sessions: usize,
     pub total_messages: usize,
     pub total_work_time: chrono::Duration,
+    pub conversation_summary: Option<ConversationSummary>,
 }
 
 #[derive(Debug, Clone)]
@@ -108,6 +110,7 @@ pub struct ProjectStats {
     pub work_time: chrono::Duration,
     pub activity_types: HashMap<String, usize>,
     pub most_active_day: Option<DateTime<Utc>>,
+    pub topic_analysis: Option<TopicAnalysis>,
 }
 
 #[derive(Debug, Clone)]
@@ -159,6 +162,38 @@ impl ActivityType {
             ActivityType::Other => "Other",
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct SessionSummary {
+    pub main_topics: Vec<String>,
+    pub key_discussions: Vec<String>,
+    pub technologies_mentioned: Vec<String>,
+    pub problems_addressed: Vec<String>,
+    pub solutions_proposed: Vec<String>,
+    pub learning_moments: Vec<String>,
+    pub overall_summary: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConversationSummary {
+    pub total_topics: usize,
+    pub most_discussed_topics: Vec<(String, usize)>,
+    pub technology_usage: HashMap<String, usize>,
+    pub common_problems: Vec<String>,
+    pub learning_progression: Vec<String>,
+    pub productivity_insights: Vec<String>,
+    pub overall_themes: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TopicAnalysis {
+    pub primary_topics: Vec<String>,
+    pub secondary_topics: Vec<String>,
+    pub technical_stack: Vec<String>,
+    pub problem_categories: HashMap<String, usize>,
+    pub solution_patterns: Vec<String>,
+    pub complexity_indicators: Vec<String>,
 }
 
 impl Default for MessageContentVariant {

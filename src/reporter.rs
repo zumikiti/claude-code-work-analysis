@@ -1,8 +1,8 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc, Datelike, Timelike};
+use chrono::Timelike;
 use std::collections::HashMap;
 
-use crate::models::{WorkAnalysis, WorkSession, ProjectStats};
+use crate::models::WorkAnalysis;
 
 pub struct ReportGenerator {
     /// Include detailed session information in reports
@@ -57,6 +57,11 @@ impl ReportGenerator {
         report.push_str(&self.generate_time_analysis(analysis));
         report.push_str("\n\n");
 
+        // Conversation Summary
+        report.push_str("## 💭 Conversation Summary\n\n");
+        report.push_str(&self.generate_conversation_summary_section(analysis));
+        report.push_str("\n\n");
+
         // Session Details (if enabled)
         if self.include_session_details {
             report.push_str("## 💬 Recent Sessions\n\n");
@@ -101,9 +106,23 @@ impl ReportGenerator {
                     "duration_minutes": (session.end_time - session.start_time).num_minutes(),
                     "total_messages": session.total_messages,
                     "user_messages": session.user_messages,
-                    "assistant_messages": session.assistant_messages
+                    "assistant_messages": session.assistant_messages,
+                    "summary": session.summary.as_ref().map(|s| serde_json::json!({
+                        "overall_summary": s.overall_summary,
+                        "main_topics": s.main_topics,
+                        "technologies_mentioned": s.technologies_mentioned,
+                        "problems_addressed": s.problems_addressed.len(),
+                        "solutions_proposed": s.solutions_proposed.len()
+                    }))
                 })
-            }).collect::<Vec<_>>()
+            }).collect::<Vec<_>>(),
+            "conversation_summary": analysis.conversation_summary.as_ref().map(|cs| serde_json::json!({
+                "total_topics": cs.total_topics,
+                "most_discussed_topics": cs.most_discussed_topics,
+                "technology_usage": cs.technology_usage,
+                "overall_themes": cs.overall_themes,
+                "productivity_insights": cs.productivity_insights
+            }))
         });
 
         Ok(serde_json::to_string_pretty(&json_data)?)
@@ -173,6 +192,21 @@ impl ReportGenerator {
                 work_hours,
                 most_active_activity
             ));
+
+            // Add topic analysis if available
+            if let Some(ref topic_analysis) = stats.topic_analysis {
+                breakdown.push_str(&format!(
+                    " - **Primary Topics:** {}\n",
+                    topic_analysis.primary_topics.join(", ")
+                ));
+                if !topic_analysis.technical_stack.is_empty() {
+                    breakdown.push_str(&format!(
+                        " - **Technical Stack:** {}\n",
+                        topic_analysis.technical_stack.join(", ")
+                    ));
+                }
+            }
+            breakdown.push('\n');
         }
 
         breakdown
@@ -282,12 +316,12 @@ impl ReportGenerator {
                 .last()
                 .unwrap_or("Unknown");
 
-            details.push_str(&format!(
+            let mut session_detail = format!(
                 "### 🔄 Session: {} \n\
                  **Project:** {}\n\
                  **Duration:** {} minutes\n\
                  **Messages:** {} (User: {}, Assistant: {})\n\
-                 **Time:** {}\n\n",
+                 **Time:** {}\n",
                 &session.session_id.to_string()[..8],
                 project_name,
                 duration.num_minutes(),
@@ -295,7 +329,29 @@ impl ReportGenerator {
                 session.user_messages,
                 session.assistant_messages,
                 session.start_time.format("%Y-%m-%d %H:%M UTC")
-            ));
+            );
+
+            // Add session summary if available
+            if let Some(ref summary) = session.summary {
+                session_detail.push_str(&format!(
+                    "**Summary:** {}\n",
+                    summary.overall_summary
+                ));
+                if !summary.main_topics.is_empty() {
+                    session_detail.push_str(&format!(
+                        "**Topics:** {}\n",
+                        summary.main_topics.join(", ")
+                    ));
+                }
+                if !summary.technologies_mentioned.is_empty() {
+                    session_detail.push_str(&format!(
+                        "**Technologies:** {}\n",
+                        summary.technologies_mentioned.join(", ")
+                    ));
+                }
+            }
+            session_detail.push_str("\n");
+            details.push_str(&session_detail);
         }
 
         details
@@ -345,6 +401,70 @@ impl ReportGenerator {
 
         recommendations.join("\n\n")
     }
+
+    fn generate_conversation_summary_section(&self, analysis: &WorkAnalysis) -> String {
+        if let Some(ref conv_summary) = analysis.conversation_summary {
+            let mut summary = String::new();
+
+            // Overall themes
+            if !conv_summary.overall_themes.is_empty() {
+                summary.push_str(&format!(
+                    "**Overall Themes:** {}\n\n",
+                    conv_summary.overall_themes.join(", ")
+                ));
+            }
+
+            // Most discussed topics
+            if !conv_summary.most_discussed_topics.is_empty() {
+                summary.push_str("**Most Discussed Topics:**\n");
+                for (topic, count) in conv_summary.most_discussed_topics.iter().take(5) {
+                    summary.push_str(&format!("- {} ({} mentions)\n", topic, count));
+                }
+                summary.push('\n');
+            }
+
+            // Technology usage
+            if !conv_summary.technology_usage.is_empty() {
+                summary.push_str("**Technology Usage:**\n");
+                let mut tech_usage: Vec<_> = conv_summary.technology_usage.iter().collect();
+                tech_usage.sort_by(|a, b| b.1.cmp(a.1));
+                for (tech, count) in tech_usage.iter().take(8) {
+                    summary.push_str(&format!("- {} ({} times)\n", tech, count));
+                }
+                summary.push('\n');
+            }
+
+            // Common problems
+            if !conv_summary.common_problems.is_empty() {
+                summary.push_str("**Common Problem Areas:**\n");
+                for problem in conv_summary.common_problems.iter().take(3) {
+                    summary.push_str(&format!("- {}\n", problem));
+                }
+                summary.push('\n');
+            }
+
+            // Learning progression
+            if !conv_summary.learning_progression.is_empty() {
+                summary.push_str("**Learning Highlights:**\n");
+                for learning in conv_summary.learning_progression.iter().take(3) {
+                    summary.push_str(&format!("- {}\n", learning));
+                }
+                summary.push('\n');
+            }
+
+            // Productivity insights
+            if !conv_summary.productivity_insights.is_empty() {
+                summary.push_str("**Productivity Insights:**\n");
+                for insight in &conv_summary.productivity_insights {
+                    summary.push_str(&format!("- {}\n", insight));
+                }
+            }
+
+            summary
+        } else {
+            "会話内容の分析は利用できません。".to_string()
+        }
+    }
 }
 
 impl Default for ReportGenerator {
@@ -357,7 +477,7 @@ impl Default for ReportGenerator {
 mod tests {
     use super::*;
     use crate::models::{WorkSession, ProjectStats};
-    use chrono::Duration;
+    use chrono::{Duration, Utc};
     use std::collections::HashMap;
     use uuid::Uuid;
 
@@ -377,6 +497,7 @@ mod tests {
                     activities
                 },
                 most_active_day: Some(Utc::now()),
+                topic_analysis: None,
             }
         );
 
@@ -391,6 +512,7 @@ mod tests {
                     total_messages: 5,
                     user_messages: 3,
                     assistant_messages: 2,
+                    summary: None,
                 }
             ],
             project_stats,
@@ -398,6 +520,7 @@ mod tests {
             total_sessions: 2,
             total_messages: 10,
             total_work_time: Duration::hours(2),
+            conversation_summary: None,
         }
     }
 

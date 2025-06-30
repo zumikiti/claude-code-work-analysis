@@ -5,15 +5,18 @@ use uuid::Uuid;
 
 use crate::models::{
     ClaudeLogEntry, WorkSession, WorkAnalysis, ProjectStats, ActivityType, 
-    MessageContentVariant, EntryType
+    MessageContentVariant, EntryType, ConversationSummary
 };
 use crate::scanner::ProjectScanner;
+use crate::message_analyzer::MessageAnalyzer;
 
 pub struct WorkAnalyzer {
     /// Minimum time between messages to consider them part of the same session
     session_gap_threshold: Duration,
     /// Minimum number of messages to consider a session meaningful
     min_session_messages: usize,
+    /// Message analyzer for content analysis
+    message_analyzer: MessageAnalyzer,
 }
 
 impl WorkAnalyzer {
@@ -21,6 +24,7 @@ impl WorkAnalyzer {
         Self {
             session_gap_threshold: Duration::hours(2), // 2 hours gap = new session
             min_session_messages: 3,
+            message_analyzer: MessageAnalyzer::new(),
         }
     }
 
@@ -44,6 +48,7 @@ impl WorkAnalyzer {
                 total_sessions: 0,
                 total_messages: 0,
                 total_work_time: Duration::zero(),
+                conversation_summary: None,
             });
         }
 
@@ -73,6 +78,9 @@ impl WorkAnalyzer {
             .map(|s| s.end_time - s.start_time)
             .fold(Duration::zero(), |acc, d| acc + d);
 
+        // Generate conversation summary
+        let conversation_summary = self.generate_conversation_summary(&meaningful_sessions);
+
         Ok(WorkAnalysis {
             sessions: meaningful_sessions,
             project_stats,
@@ -80,6 +88,7 @@ impl WorkAnalyzer {
             total_sessions,
             total_messages,
             total_work_time,
+            conversation_summary: Some(conversation_summary),
         })
     }
 
@@ -150,6 +159,9 @@ impl WorkAnalyzer {
             .filter(|e| matches!(e.entry_type, EntryType::Assistant))
             .count();
 
+        // Generate session summary
+        let session_summary = self.message_analyzer.analyze_session(&entries);
+        
         Some(WorkSession {
             session_id,
             project_path,
@@ -159,6 +171,7 @@ impl WorkAnalyzer {
             user_messages,
             assistant_messages,
             entries,
+            summary: Some(session_summary),
         })
     }
 
@@ -194,6 +207,7 @@ impl WorkAnalyzer {
                     work_time: Duration::zero(),
                     activity_types: HashMap::new(),
                     most_active_day: None,
+                    topic_analysis: None,
                 });
 
             stats.total_sessions += 1;
@@ -222,6 +236,24 @@ impl WorkAnalyzer {
                         }
                     }
                 }
+            }
+        }
+
+        // Generate topic analysis for each project
+        for (project_name, stats) in project_stats.iter_mut() {
+            let project_entries: Vec<ClaudeLogEntry> = sessions
+                .iter()
+                .filter(|session| {
+                    ProjectScanner::extract_project_name(
+                        std::path::Path::new(&session.project_path)
+                    ).unwrap_or_else(|| session.project_path.clone()) == *project_name
+                })
+                .flat_map(|session| session.entries.clone())
+                .collect();
+            
+            if !project_entries.is_empty() {
+                let topic_analysis = self.message_analyzer.analyze_project_topics(&project_entries);
+                stats.topic_analysis = Some(topic_analysis);
             }
         }
 
@@ -291,6 +323,34 @@ impl WorkAnalyzer {
             .iter()
             .filter(|session| session.start_time >= start && session.end_time <= end)
             .collect()
+    }
+
+    /// Generate conversation summary from all sessions
+    fn generate_conversation_summary(&self, sessions: &[WorkSession]) -> ConversationSummary {
+        let sessions_with_summaries: Vec<(Vec<ClaudeLogEntry>, crate::models::SessionSummary)> = sessions
+            .iter()
+            .filter_map(|session| {
+                if let Some(ref summary) = session.summary {
+                    Some((session.entries.clone(), summary.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if sessions_with_summaries.is_empty() {
+            return ConversationSummary {
+                total_topics: 0,
+                most_discussed_topics: Vec::new(),
+                technology_usage: HashMap::new(),
+                common_problems: Vec::new(),
+                learning_progression: Vec::new(),
+                productivity_insights: Vec::new(),
+                overall_themes: Vec::new(),
+            };
+        }
+
+        self.message_analyzer.analyze_conversations(&sessions_with_summaries)
     }
 }
 

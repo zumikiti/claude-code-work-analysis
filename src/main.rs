@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc, NaiveDate, TimeZone};
+use chrono::{DateTime, Utc, NaiveDate};
 use clap::{Arg, Command};
 use std::path::PathBuf;
 
@@ -9,6 +9,7 @@ mod parser;
 mod filter;
 mod analyzer;
 mod reporter;
+mod message_analyzer;
 
 use crate::scanner::ProjectScanner;
 use crate::filter::TimeRangeFilter;
@@ -22,7 +23,7 @@ fn parse_date_string(date_str: &str) -> Result<DateTime<Utc>> {
         .map_err(|e| anyhow::anyhow!("Invalid date format '{}': {}. Expected YYYY-MM-DD", date_str, e))?;
     
     // Convert to DateTime<Utc> at start of day (00:00:00)
-    Ok(Utc.from_utc_datetime(&naive_date.and_hms_opt(0, 0, 0).unwrap()))
+    Ok(naive_date.and_hms_opt(0, 0, 0).unwrap().and_utc())
 }
 
 /// Parse a date string in YYYY-MM-DD format to DateTime<Utc> (end of day)
@@ -31,7 +32,7 @@ fn parse_end_date_string(date_str: &str) -> Result<DateTime<Utc>> {
         .map_err(|e| anyhow::anyhow!("Invalid date format '{}': {}. Expected YYYY-MM-DD", date_str, e))?;
     
     // Convert to DateTime<Utc> at end of day (23:59:59)
-    Ok(Utc.from_utc_datetime(&naive_date.and_hms_opt(23, 59, 59).unwrap()))
+    Ok(naive_date.and_hms_opt(23, 59, 59).unwrap().and_utc())
 }
 
 #[tokio::main]
