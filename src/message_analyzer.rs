@@ -51,9 +51,7 @@ impl MessageAnalyzer {
 
     /// Analyze a single session and generate summary
     pub fn analyze_session(&self, entries: &[ClaudeLogEntry]) -> SessionSummary {
-        let mut main_topics = Vec::new();
         let mut key_discussions = Vec::new();
-        let mut technologies_mentioned = Vec::new();
         let mut problems_addressed = Vec::new();
         let mut solutions_proposed = Vec::new();
         let mut learning_moments = Vec::new();
@@ -105,14 +103,14 @@ impl MessageAnalyzer {
         }
         
         // Sort and filter results
-        technologies_mentioned = tech_mentions
+        let mut technologies_mentioned: Vec<String> = tech_mentions
             .into_iter()
             .filter(|(_, count)| *count >= 1) // At least 1 mention
             .map(|(tech, _)| tech)
             .collect();
         technologies_mentioned.sort();
         
-        main_topics = topic_keywords
+        let mut main_topics: Vec<String> = topic_keywords
             .into_iter()
             .filter(|(_, count)| *count >= 1) // At least 1 mention
             .map(|(topic, _)| topic)
@@ -144,7 +142,6 @@ impl MessageAnalyzer {
         let mut tech_usage: HashMap<String, usize> = HashMap::new();
         let mut common_problems = Vec::new();
         let mut learning_progression = Vec::new();
-        let mut overall_themes = Vec::new();
         
         for (_, summary) in sessions_with_summaries {
             // Aggregate topics
@@ -170,7 +167,7 @@ impl MessageAnalyzer {
         let productivity_insights = self.generate_productivity_insights(sessions_with_summaries);
         
         // Extract overall themes
-        overall_themes = self.extract_overall_themes(&most_discussed_topics, &tech_usage);
+        let overall_themes = self.extract_overall_themes(&most_discussed_topics, &tech_usage);
         
         ConversationSummary {
             total_topics: most_discussed_topics.len(),
@@ -185,11 +182,7 @@ impl MessageAnalyzer {
     
     /// Generate topic analysis for a project
     pub fn analyze_project_topics(&self, all_entries: &[ClaudeLogEntry]) -> TopicAnalysis {
-        let mut primary_topics = Vec::new();
-        let mut secondary_topics = Vec::new();
-        let mut technical_stack = Vec::new();
         let mut problem_categories: HashMap<String, usize> = HashMap::new();
-        let mut solution_patterns = Vec::new();
         let mut complexity_indicators = Vec::new();
         
         let mut topic_frequency: HashMap<String, usize> = HashMap::new();
@@ -230,11 +223,11 @@ impl MessageAnalyzer {
         let mut sorted_topics: Vec<(String, usize)> = topic_frequency.into_iter().collect();
         sorted_topics.sort_by(|a, b| b.1.cmp(&a.1));
         
-        primary_topics = sorted_topics.iter().take(5).map(|(topic, _)| topic.clone()).collect();
-        secondary_topics = sorted_topics.iter().skip(5).take(10).map(|(topic, _)| topic.clone()).collect();
+        let primary_topics: Vec<String> = sorted_topics.iter().take(5).map(|(topic, _)| topic.clone()).collect();
+        let secondary_topics: Vec<String> = sorted_topics.iter().skip(5).take(10).map(|(topic, _)| topic.clone()).collect();
         
         // Extract technical stack
-        technical_stack = tech_frequency
+        let mut technical_stack: Vec<String> = tech_frequency
             .into_iter()
             .filter(|(_, count)| *count >= 3)
             .map(|(tech, _)| tech)
@@ -242,7 +235,7 @@ impl MessageAnalyzer {
         technical_stack.sort();
         
         // Generate solution patterns
-        solution_patterns = self.extract_solution_patterns(all_entries);
+        let solution_patterns = self.extract_solution_patterns(all_entries);
         
         TopicAnalysis {
             primary_topics,

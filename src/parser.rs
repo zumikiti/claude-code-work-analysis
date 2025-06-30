@@ -16,7 +16,7 @@ impl JsonlParser {
     pub fn new() -> Self {
         Self {
             skip_malformed: true,
-            max_line_length: 1024 * 1024, // 1MB per line max
+            max_line_length: 10 * 1024 * 1024, // 10MB per line max (for large image content)
         }
     }
 
@@ -42,6 +42,9 @@ impl JsonlParser {
         let mut lines = reader.lines();
         let mut entries = Vec::new();
         let mut line_number = 0;
+        let mut skipped_lines = 0;
+        let mut oversized_lines = 0;
+        let mut summary_entries = 0;
 
         while let Some(line) = lines.next_line().await? {
             line_number += 1;
@@ -53,37 +56,65 @@ impl JsonlParser {
 
             // Check line length
             if line.len() > self.max_line_length {
-                let error_msg = format!(
-                    "Line {} exceeds maximum length of {} bytes",
-                    line_number, self.max_line_length
-                );
-                
+                oversized_lines += 1;
                 if self.skip_malformed {
-                    eprintln!("Warning: {} in {}", error_msg, file_path.display());
+                    // Only show warning for the first few oversized lines to avoid spam
+                    if oversized_lines <= 3 {
+                        eprintln!("Warning: Line {} exceeds maximum length of {} bytes in {}", 
+                                 line_number, self.max_line_length, file_path.display());
+                    }
                     continue;
                 } else {
-                    return Err(anyhow::anyhow!(error_msg));
+                    return Err(anyhow::anyhow!(
+                        "Line {} exceeds maximum length of {} bytes",
+                        line_number, self.max_line_length
+                    ));
                 }
             }
 
             match self.parse_line(&line) {
                 Ok(entry) => entries.push(entry),
                 Err(e) => {
-                    let error_msg = format!(
-                        "Failed to parse line {} in {}: {}",
-                        line_number,
-                        file_path.display(),
-                        e
-                    );
-
+                    let error_str = e.to_string();
+                    if error_str.contains("Skipping summary entry") {
+                        summary_entries += 1;
+                        // Don't spam with summary entry warnings
+                        continue;
+                    }
+                    
+                    skipped_lines += 1;
                     if self.skip_malformed {
-                        eprintln!("Warning: {}", error_msg);
+                        // Only show warning for the first few parse errors to avoid spam
+                        if skipped_lines <= 3 {
+                            eprintln!("Warning: Failed to parse line {} in {}: {}",
+                                     line_number, file_path.display(), e);
+                        }
                         continue;
                     } else {
-                        return Err(anyhow::anyhow!(error_msg));
+                        return Err(anyhow::anyhow!(
+                            "Failed to parse line {} in {}: {}",
+                            line_number, file_path.display(), e
+                        ));
                     }
                 }
             }
+        }
+
+        // Show summary of parsing issues if any
+        if skipped_lines > 0 || oversized_lines > 0 || summary_entries > 0 {
+            let filename = file_path.file_name().unwrap_or_default().to_string_lossy();
+            let mut issues = Vec::new();
+            if summary_entries > 0 {
+                issues.push(format!("{} summary entries", summary_entries));
+            }
+            if oversized_lines > 0 {
+                issues.push(format!("{} oversized lines", oversized_lines));
+            }
+            if skipped_lines > 0 {
+                issues.push(format!("{} parse errors", skipped_lines));
+            }
+            eprintln!("Info: {} - Skipped {} (out of {} total lines)", 
+                     filename, issues.join(", "), line_number);
         }
 
         Ok(entries)
