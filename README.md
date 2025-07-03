@@ -101,6 +101,8 @@ cargo build --release
 
 ## Claude Code連携
 
+### コマンドライン版での連携
+
 生成されたレポートをClaude Codeで読み込んで、さらに詳細な分析や質問を行うことができます：
 
 ```bash
@@ -110,6 +112,12 @@ cargo build --release
 # Claude Codeでレポートを読み込み
 claude read work-summary.md
 ```
+
+### MCPサーバー版での連携
+
+**🚀 NEW**: MCPサーバー版を利用すると、Claude Codeから直接リアルタイムで分析が可能です。
+
+詳細な設定方法と使用方法については **[README-MCP.md](README-MCP.md)** を参照してください。
 
 ## 開発
 

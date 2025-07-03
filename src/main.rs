@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc, NaiveDate};
+use chrono::{DateTime, Utc, NaiveDate, TimeZone, FixedOffset};
 use clap::{Arg, Command};
 use std::path::PathBuf;
 
@@ -17,22 +17,28 @@ use crate::parser::JsonlParser;
 use crate::analyzer::WorkAnalyzer;
 use crate::reporter::ReportGenerator;
 
-/// Parse a date string in YYYY-MM-DD format to DateTime<Utc> (start of day)
+/// Parse a date string in YYYY-MM-DD format to DateTime<Utc> (start of day in JST)
 fn parse_date_string(date_str: &str) -> Result<DateTime<Utc>> {
     let naive_date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
         .map_err(|e| anyhow::anyhow!("Invalid date format '{}': {}. Expected YYYY-MM-DD", date_str, e))?;
     
-    // Convert to DateTime<Utc> at start of day (00:00:00)
-    Ok(naive_date.and_hms_opt(0, 0, 0).unwrap().and_utc())
+    // JST timezone (UTC+9)
+    let jst = FixedOffset::east_opt(9 * 3600).unwrap();
+    
+    // Convert to DateTime in JST at start of day (00:00:00), then to UTC
+    Ok(jst.from_local_datetime(&naive_date.and_hms_opt(0, 0, 0).unwrap()).unwrap().with_timezone(&Utc))
 }
 
-/// Parse a date string in YYYY-MM-DD format to DateTime<Utc> (end of day)
+/// Parse a date string in YYYY-MM-DD format to DateTime<Utc> (end of day in JST)
 fn parse_end_date_string(date_str: &str) -> Result<DateTime<Utc>> {
     let naive_date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
         .map_err(|e| anyhow::anyhow!("Invalid date format '{}': {}. Expected YYYY-MM-DD", date_str, e))?;
     
-    // Convert to DateTime<Utc> at end of day (23:59:59)
-    Ok(naive_date.and_hms_opt(23, 59, 59).unwrap().and_utc())
+    // JST timezone (UTC+9)
+    let jst = FixedOffset::east_opt(9 * 3600).unwrap();
+    
+    // Convert to DateTime in JST at end of day (23:59:59), then to UTC
+    Ok(jst.from_local_datetime(&naive_date.and_hms_opt(23, 59, 59).unwrap()).unwrap().with_timezone(&Utc))
 }
 
 #[tokio::main]
