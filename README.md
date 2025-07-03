@@ -1,4 +1,4 @@
-# Claude Work Analysis Rust
+# Claude Code Work Analysis
 
 Claude Codeの作業ログを分析し、MCPサーバーとしてリアルタイムで統計情報を提供するRustツールです。
 
@@ -13,8 +13,8 @@ Claude Codeの作業ログを分析し、MCPサーバーとしてリアルタイ
 ## インストール
 
 ```bash
-git clone https://github.com/your-username/claude-work-analysis-rust.git
-cd claude-work-analysis-rust
+git clone https://github.com/your-username/claude-code-work-analysis.git
+cd claude-code-work-analysis
 cargo build --release
 ```
 
@@ -34,17 +34,8 @@ cargo build --bin mcp-server
 
 ### Claude Code統合設定
 
-Claude Codeの設定ファイル（`~/.claude/claude_desktop_config.json`）に以下を追加：
-
-```json
-{
-  "mcpServers": {
-    "claude-work-analysis": {
-      "command": "/path/to/claude-work-analysis-rust/target/debug/mcp-server",
-      "env": {}
-    }
-  }
-}
+```bash
+claude mcp add claude-code-work-analysis "/path/to/claude-code-work-analysis/target/debug/mcp-server"
 ```
 
 ### MCPツール一覧
