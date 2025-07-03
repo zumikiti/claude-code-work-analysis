@@ -41,10 +41,12 @@ impl WorkAnalyzer {
     /// Analyze a collection of Claude log entries and produce work analysis
     pub fn analyze_entries(&self, entries: &[ClaudeLogEntry]) -> Result<WorkAnalysis> {
         if entries.is_empty() {
+            // Use epoch time for empty entries instead of current time
+            let epoch = DateTime::from_timestamp(0, 0).unwrap_or(Utc::now());
             return Ok(WorkAnalysis {
                 sessions: Vec::new(),
                 project_stats: HashMap::new(),
-                time_range: (Utc::now(), Utc::now()),
+                time_range: (epoch, epoch),
                 total_sessions: 0,
                 total_messages: 0,
                 total_work_time: Duration::zero(),

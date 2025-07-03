@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::Timelike;
+use chrono::{Timelike, TimeZone, FixedOffset};
 use std::collections::HashMap;
 
 use crate::models::WorkAnalysis;
@@ -84,8 +84,8 @@ impl ReportGenerator {
                 "total_messages": analysis.total_messages,
                 "total_work_time_hours": analysis.total_work_time.num_hours(),
                 "time_range": {
-                    "start": analysis.time_range.0.to_rfc3339(),
-                    "end": analysis.time_range.1.to_rfc3339()
+                    "start": analysis.time_range.0.with_timezone(&FixedOffset::east_opt(9 * 3600).unwrap()).to_rfc3339(),
+                    "end": analysis.time_range.1.with_timezone(&FixedOffset::east_opt(9 * 3600).unwrap()).to_rfc3339()
                 }
             },
             "projects": analysis.project_stats.iter().map(|(name, stats)| {
@@ -101,8 +101,8 @@ impl ReportGenerator {
                 serde_json::json!({
                     "session_id": session.session_id,
                     "project_path": session.project_path,
-                    "start_time": session.start_time.to_rfc3339(),
-                    "end_time": session.end_time.to_rfc3339(),
+                    "start_time": session.start_time.with_timezone(&FixedOffset::east_opt(9 * 3600).unwrap()).to_rfc3339(),
+                    "end_time": session.end_time.with_timezone(&FixedOffset::east_opt(9 * 3600).unwrap()).to_rfc3339(),
                     "duration_minutes": (session.end_time - session.start_time).num_minutes(),
                     "total_messages": session.total_messages,
                     "user_messages": session.user_messages,
@@ -130,10 +130,15 @@ impl ReportGenerator {
 
     fn generate_header(&self, analysis: &WorkAnalysis) -> String {
         let (start, end) = analysis.time_range;
+        // Convert to JST for display
+        let jst = FixedOffset::east_opt(9 * 3600).unwrap();
+        let start_jst = start.with_timezone(&jst);
+        let end_jst = end.with_timezone(&jst);
+        
         format!(
             "# 🤖 Claude Work Analysis Report\n\n**Analysis Period:** {} to {}",
-            start.format("%Y-%m-%d %H:%M UTC"),
-            end.format("%Y-%m-%d %H:%M UTC")
+            start_jst.format("%Y-%m-%d %H:%M JST"),
+            end_jst.format("%Y-%m-%d %H:%M JST")
         )
     }
 
@@ -306,6 +311,9 @@ impl ReportGenerator {
     fn generate_session_details(&self, analysis: &WorkAnalysis) -> String {
         let mut details = String::new();
         
+        // JST timezone for session display
+        let jst = FixedOffset::east_opt(9 * 3600).unwrap();
+        
         let mut recent_sessions = analysis.sessions.clone();
         recent_sessions.sort_by(|a, b| b.start_time.cmp(&a.start_time));
 
@@ -328,7 +336,7 @@ impl ReportGenerator {
                 session.total_messages,
                 session.user_messages,
                 session.assistant_messages,
-                session.start_time.format("%Y-%m-%d %H:%M UTC")
+                session.start_time.with_timezone(&jst).format("%Y-%m-%d %H:%M JST")
             );
 
             // Add session summary if available

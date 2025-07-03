@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc, Datelike};
+use chrono::{DateTime, Utc, Datelike, TimeZone, FixedOffset};
 
 use crate::models::ClaudeLogEntry;
 use crate::scanner::ProjectScanner;
@@ -25,27 +25,29 @@ impl TimeRangeFilter {
         }
     }
 
-    /// Create a filter for the last N days
+    /// Create a filter for the last N days (in JST)
     pub fn last_days(days: i64) -> Self {
-        let now = Utc::now();
-        let from_date = now - chrono::Duration::days(days);
+        let jst = FixedOffset::east_opt(9 * 3600).unwrap();
+        let now_jst = Utc::now().with_timezone(&jst);
+        let from_date_jst = now_jst - chrono::Duration::days(days);
         
         Self {
-            from_date: Some(from_date),
-            to_date: Some(now),
+            from_date: Some(from_date_jst.with_timezone(&Utc)),
+            to_date: Some(now_jst.with_timezone(&Utc)),
             project_filter: None,
         }
     }
 
-    /// Create a filter for the current week
+    /// Create a filter for the current week (in JST)
     pub fn current_week() -> Self {
-        let now = Utc::now();
-        let days_since_monday = now.weekday().num_days_from_monday() as i64;
-        let monday = now - chrono::Duration::days(days_since_monday);
+        let jst = FixedOffset::east_opt(9 * 3600).unwrap();
+        let now_jst = Utc::now().with_timezone(&jst);
+        let days_since_monday = now_jst.weekday().num_days_from_monday() as i64;
+        let monday_jst = now_jst - chrono::Duration::days(days_since_monday);
         
         Self {
-            from_date: Some(monday),
-            to_date: Some(now),
+            from_date: Some(monday_jst.with_timezone(&Utc)),
+            to_date: Some(now_jst.with_timezone(&Utc)),
             project_filter: None,
         }
     }
@@ -178,7 +180,7 @@ impl Default for TimeRangeFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
+    use chrono::{TimeZone, FixedOffset};
     use uuid::Uuid;
     use crate::models::{MessageContent, MessageContentVariant, EntryType};
 
@@ -210,27 +212,37 @@ mod tests {
 
     #[test]
     fn test_time_range_filter() {
-        let from_date = Utc.with_ymd_and_hms(2025, 6, 25, 0, 0, 0).unwrap();
-        let to_date = Utc.with_ymd_and_hms(2025, 6, 30, 23, 59, 59).unwrap();
+        // JST timezone for testing
+        let jst = FixedOffset::east_opt(9 * 3600).unwrap();
+        
+        // Create JST dates and convert to UTC for storage
+        let from_date_jst = jst.with_ymd_and_hms(2025, 6, 25, 0, 0, 0).unwrap();
+        let to_date_jst = jst.with_ymd_and_hms(2025, 6, 30, 23, 59, 59).unwrap();
+        let from_date = from_date_jst.with_timezone(&Utc);
+        let to_date = to_date_jst.with_timezone(&Utc);
+        
         let filter = TimeRangeFilter::new(Some(from_date), Some(to_date), None);
 
-        // Should match
+        // Should match (JST time within range)
+        let entry1_jst = jst.with_ymd_and_hms(2025, 6, 26, 12, 0, 0).unwrap();
         let entry1 = create_test_entry(
-            Utc.with_ymd_and_hms(2025, 6, 26, 12, 0, 0).unwrap(),
+            entry1_jst.with_timezone(&Utc),
             "/test/project"
         );
         assert!(filter.matches_entry(&entry1));
 
-        // Should not match (too early)
+        // Should not match (too early in JST)
+        let entry2_jst = jst.with_ymd_and_hms(2025, 6, 24, 12, 0, 0).unwrap();
         let entry2 = create_test_entry(
-            Utc.with_ymd_and_hms(2025, 6, 24, 12, 0, 0).unwrap(),
+            entry2_jst.with_timezone(&Utc),
             "/test/project"
         );
         assert!(!filter.matches_entry(&entry2));
 
-        // Should not match (too late)
+        // Should not match (too late in JST)
+        let entry3_jst = jst.with_ymd_and_hms(2025, 7, 1, 12, 0, 0).unwrap();
         let entry3 = create_test_entry(
-            Utc.with_ymd_and_hms(2025, 7, 1, 12, 0, 0).unwrap(),
+            entry3_jst.with_timezone(&Utc),
             "/test/project"
         );
         assert!(!filter.matches_entry(&entry3));
