@@ -145,34 +145,54 @@ impl WorkAnalyzer {
         if entries.is_empty() {
             return None;
         }
+        
+        // Sort entries by timestamp to ensure chronological order
+        let mut sorted_entries = entries;
+        sorted_entries.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
-        let session_id = entries[0].session_id;
-        let project_path = entries[0].cwd.clone();
-        let start_time = entries[0].timestamp;
-        let end_time = entries.last()?.timestamp;
+        let session_id = sorted_entries[0].session_id;
+        let project_path = sorted_entries[0].cwd.clone();
+        let start_time = sorted_entries[0].timestamp;
+        let end_time = sorted_entries.last()?.timestamp;
+        
+        // Validate session duration and detect anomalies
+        let duration = end_time - start_time;
+        
+        // Log warnings for data integrity issues
+        if start_time > end_time {
+            eprintln!("WARNING: Session {} has invalid time order (start > end)", session_id);
+            eprintln!("  This may indicate data corruption or timezone handling issues");
+        }
+        
+        // Detect unusually long sessions (>4 hours) 
+        if duration.num_hours() > 4 {
+            eprintln!("INFO: Long session detected: {} hours (Session: {})", 
+                duration.num_hours(), &session_id.to_string()[..8]);
+        }
+        
 
-        let user_messages = entries
+        let user_messages = sorted_entries
             .iter()
             .filter(|e| matches!(e.entry_type, EntryType::User))
             .count();
         
-        let assistant_messages = entries
+        let assistant_messages = sorted_entries
             .iter()
             .filter(|e| matches!(e.entry_type, EntryType::Assistant))
             .count();
 
         // Generate session summary
-        let session_summary = self.message_analyzer.analyze_session(&entries);
+        let session_summary = self.message_analyzer.analyze_session(&sorted_entries);
         
         Some(WorkSession {
             session_id,
             project_path,
             start_time,
             end_time,
-            total_messages: entries.len(),
+            total_messages: sorted_entries.len(),
             user_messages,
             assistant_messages,
-            entries,
+            entries: sorted_entries,
             summary: Some(session_summary),
         })
     }
