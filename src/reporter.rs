@@ -329,14 +329,15 @@ impl ReportGenerator {
                  **Project:** {}\n\
                  **Duration:** {} minutes\n\
                  **Messages:** {} (User: {}, Assistant: {})\n\
-                 **Time:** {}\n",
+                 **Time:** {} → {}\n",
                 &session.session_id.to_string()[..8],
                 project_name,
                 duration.num_minutes(),
                 session.total_messages,
                 session.user_messages,
                 session.assistant_messages,
-                session.start_time.with_timezone(&jst).format("%Y-%m-%d %H:%M JST")
+                session.start_time.with_timezone(&jst).format("%Y-%m-%d %H:%M JST"),
+                session.end_time.with_timezone(&jst).format("%H:%M JST")
             );
 
             // Add session summary if available

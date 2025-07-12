@@ -155,28 +155,19 @@ impl WorkAnalyzer {
         let start_time = sorted_entries[0].timestamp;
         let end_time = sorted_entries.last()?.timestamp;
         
-        // Debug logging for session duration calculation
+        // Validate session duration and detect anomalies
         let duration = end_time - start_time;
-        eprintln!("DEBUG: Session {} duration calculation:", session_id);
-        eprintln!("  Start time: {} (UTC)", start_time.format("%Y-%m-%d %H:%M:%S%.3f"));
-        eprintln!("  End time:   {} (UTC)", end_time.format("%Y-%m-%d %H:%M:%S%.3f"));
-        eprintln!("  Duration:   {} seconds ({} hours)", duration.num_seconds(), duration.num_hours());
-        eprintln!("  Entries:    {} total", sorted_entries.len());
         
-        // Detect anomalous durations (>4 hours)
-        if duration.num_hours() > 4 {
-            eprintln!("WARNING: Detected unusually long session duration: {} hours", duration.num_hours());
-            eprintln!("  This may indicate a bug in session splitting logic or data corruption");
-            eprintln!("  Session ID: {}", session_id);
-            eprintln!("  Project: {}", project_path);
+        // Log warnings for data integrity issues
+        if start_time > end_time {
+            eprintln!("WARNING: Session {} has invalid time order (start > end)", session_id);
+            eprintln!("  This may indicate data corruption or timezone handling issues");
         }
         
-        // Additional validation
-        if start_time > end_time {
-            eprintln!("ERROR: Session has start_time > end_time!");
-            eprintln!("  Start: {}", start_time);
-            eprintln!("  End: {}", end_time);
-            eprintln!("  This indicates a serious data corruption issue");
+        // Detect unusually long sessions (>4 hours) 
+        if duration.num_hours() > 4 {
+            eprintln!("INFO: Long session detected: {} hours (Session: {})", 
+                duration.num_hours(), &session_id.to_string()[..8]);
         }
         
 
